@@ -1,76 +1,68 @@
-import os
+"""
+Data ingestion module for the Bluestock Mutual Fund Analytics project.
+
+This module discovers CSV datasets from the raw data directory,
+loads them using pandas, and performs basic validation checks.
+"""
+
+from pathlib import Path
+
 import pandas as pd
 
-DATA_FOLDER = "data/raw"
 
-csv_files = [file for file in os.listdir(DATA_FOLDER) if file.endswith(".csv")]
-
-for file in sorted(csv_files):
-    file_path = os.path.join(DATA_FOLDER, file)
-
-    print("=" * 60)
-    print(f"Dataset: {file}")
-    print("=" * 60)
-
-    df = pd.read_csv(file_path)
-
-    print("Shape:")
-    print(df.shape)
-
-    print("\nData Types:")
-    print(df.dtypes)
-
-    print("\nFirst 5 Rows:")
-    print(df.head())
-
-    print("\nMissing Values:")
-    print(df.isnull().sum())
-
-    print("\nDuplicate Rows:")
-    print(df.duplicated().sum())
-
-    print("\nColumns:")
-    print(df.columns.tolist())
-
-    print("\n")
-
-    print("\n" + "=" * 70)
-print("FUND MASTER ANALYSIS")
-print("=" * 70)
-
-fund_master = pd.read_csv("data/raw/01_fund_master.csv")
-
-print("\nUnique Fund Houses:")
-print(fund_master["fund_house"].unique())
-
-print("\nUnique Categories:")
-print(fund_master["category"].unique())
-
-print("\nUnique Sub Categories:")
-print(fund_master["sub_category"].unique())
-
-print("\nUnique Risk Categories:")
-print(fund_master["risk_category"].unique())
+DATA_FOLDER = Path("data/raw")
 
 
-print("\n" + "=" * 70)
-print("AMFI CODE VALIDATION")
-print("=" * 70)
+def get_csv_files(data_folder: Path = DATA_FOLDER) -> list[Path]:
+    """Return all CSV files available in the raw data directory."""
+    if not data_folder.exists():
+        raise FileNotFoundError(
+            f"Raw data directory not found: {data_folder}"
+        )
 
-fund_master = pd.read_csv("data/raw/01_fund_master.csv")
-nav_history = pd.read_csv("data/raw/02_nav_history.csv")
+    return sorted(data_folder.glob("*.csv"))
 
-fund_codes = set(fund_master["amfi_code"])
-nav_codes = set(nav_history["amfi_code"])
 
-missing_codes = fund_codes - nav_codes
+def load_dataset(file_path: Path) -> pd.DataFrame:
+    """Load a CSV dataset into a pandas DataFrame."""
+    return pd.read_csv(file_path)
 
-print(f"Total AMFI Codes in fund_master: {len(fund_codes)}")
-print(f"Total AMFI Codes in nav_history: {len(nav_codes)}")
-print(f"Missing AMFI Codes: {len(missing_codes)}")
 
-if missing_codes:
-    print("\nMissing Codes:")
-    print(sorted(missing_codes))
-else:
-    print("\n All AMFI codes are present in nav_history.")
+def validate_dataset(df: pd.DataFrame, file_path: Path) -> None:
+    """Validate that a dataset was loaded successfully."""
+    if df.empty:
+        raise ValueError(f"Dataset is empty: {file_path.name}")
+
+    if len(df.columns) == 0:
+        raise ValueError(f"Dataset contains no columns: {file_path.name}")
+
+
+def ingest_datasets(data_folder: Path = DATA_FOLDER) -> dict[str, pd.DataFrame]:
+    """
+    Load and validate all CSV datasets from the raw data directory.
+
+    Returns:
+        Dictionary mapping each CSV filename to its DataFrame.
+    """
+    datasets: dict[str, pd.DataFrame] = {}
+
+    for file_path in get_csv_files(data_folder):
+        df = load_dataset(file_path)
+        validate_dataset(df, file_path)
+        datasets[file_path.stem] = df
+
+    return datasets
+
+
+def main() -> None:
+    """Run the data ingestion process."""
+    datasets = ingest_datasets()
+
+    print(f"Successfully loaded {len(datasets)} datasets.")
+
+    for name, df in datasets.items():
+        print(f"{name}: {df.shape[0]:,} rows × {df.shape[1]:,} columns")
+
+
+if __name__ == "__main__":
+    main()
